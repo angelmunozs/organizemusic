@@ -158,6 +158,15 @@ var fixMetadata = function(file, cb) {
 	var nombre_archivo = path.basename(file, extension)
 	var sep = file.split(path.sep)
 	var parts = nombre_archivo.split(' - ')
+	
+	//	Words to uppercase
+	for(var i in parts) {
+		var words = parts[i].split(' ')
+		for(var j in words) {
+			words[j] = words[j].charAt(0).toUpperCase() + words[j].slice(1)
+		}
+		parts[i] = words.join(' ')
+	}
 
 	//	Nuevos metadatos
 	var metadata = {
