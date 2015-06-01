@@ -3,7 +3,6 @@ var fs 				= require('fs-extra')
 var path 			= require('path')
 var async 			= require('async')
 var util 			= require('util')
-var ffmetadata 		= require('ffmetadata')
 var id3 			= require('id3-writer')
 var writer 			= new id3.Writer()
 
@@ -22,6 +21,8 @@ var fixMP3 = function(URL) {
 	var correctFiles = []
 	var modifiedFiles = []
 	var completarManualmente = []
+	var metadataFiles = []
+	var audio_extensions = ['.mp3', '.wav', '.wma', '.flac', '.ogg', '.m4a', '.amr']
 
 	//	Test folders
 	//	fs.emptyDirSync(location)
@@ -31,7 +32,10 @@ var fixMP3 = function(URL) {
 		//	Check if the folder exists
 		function checkIfExists (cb) {
 			fs.exists(location, function (exists) {
-				return (exists ? cb() : cb('No existe el directorio ' + location))
+				if(!exists) {
+					return cb('No existe el directorio ' + location)
+				}
+				cb()
 			})
 		},
 		//	Analyze folder content
@@ -50,21 +54,23 @@ var fixMP3 = function(URL) {
 		},
 		//	Get mp3 info
 		function fixFiles (files, cb) {
+
 			async.each(files, function (file, cb1) {
 
-				//	Print progress
-			    var msg = util.format('Procesados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
-			    process.stdout.write(msg + '                 \r')
+			    var extension = path.extname(file).toLowerCase()
+
+			    if(audio_extensions.indexOf(extension) == -1) {
+			    	return cb1()
+			    }
 
 				if(regex_correcto.test(file)) {
 					correctFiles.push(file)
-					//	Update metadada
-					fixMetadata(path.join(location, file), cb1)
+					cb1()
 				}
 				else {
 					var old_name = file
 					var new_name = file
-					var extension = path.extname(old_name).toLowerCase()
+					
 					//	Se carga lo de después de los paréntesis
 					new_name = old_name.replace(/\).+/, ')')
 					//	Si le falta "(Original Mix)" al final
@@ -72,7 +78,7 @@ var fixMP3 = function(URL) {
 						new_name = path.basename(old_name, extension) + ' (Original Mix)'
 					}
 					//	Si nos hemos cargado la extensión
-					var regex_extension = new RegExp('$\\' + extension, '')
+					var regex_extension = new RegExp('$\.' + extension, '')
 					if(!regex_extension.test(new_name)) {
 						new_name = new_name + extension
 					}
@@ -82,23 +88,7 @@ var fixMP3 = function(URL) {
 							'old' : old_name,
 							'new' : new_name
 						})
-						async.series([
-							//	Rename file
-							function (cb2) {
-								fs.rename(path.join(location, old_name), path.join(location, new_name), function () {
-									cb2()
-								})
-							},
-							//	Update metadada
-							function (cb2) {
-								fixMetadata(path.join(location, new_name), cb2)
-							}
-						], function (error) {
-							if(error) {
-								return cb1(error)
-							}
-							cb1()
-						})
+						fs.rename(path.join(location, old_name), path.join(location, new_name), cb1)
 					}
 					else {
 						//	Si no se ha modificado porque no se ha localizado el error, lo mete en el array de archivos a modificar manualmente
@@ -107,114 +97,106 @@ var fixMP3 = function(URL) {
 					}
 				}
 
-			}, function(error) {
-				if(error) {
-					console.log('')
+			}, cb)
+		},
+		//	Update file names
+		function updateFilenames (cb) {
+			//	Currently disabled
+			return cb(null, null)
+
+			fs.readdir(location, function (error, results) {
+				if (error) {
 					return cb(error)
 				}
-				console.log('')
-				cb()
+				if (!results || !results.length) {
+					return cb('No se han encontrado archivos en ' + location)
+				}
+				files = results
+				total = files.length
+				cb(null, files)
 			})
 		},
-		//	Print results in console
-		function printResults (cb) {
-			console.log('')
+		//	Set id3 tags
+		function setTags (files, cb) {
+			//	Currently disabled
+			return cb(null)
 
-			console.log('No se han modificado: ')
-			for(var i in correctFiles) {
-				console.log('\t► ' + correctFiles[i])
-			}
-			console.log('')
-			console.log('Se han modificado: ')
-			for(var i in modifiedFiles) {
-				console.log('\t► ' + modifiedFiles[i].old)
-				console.log('\t\t→ ' + modifiedFiles[i].new)
-			}
-			console.log('')
-			console.log('Modificar manualmente (algún parámetro desconocido): ')
-			for(var i in completarManualmente) {
-				console.log('\t► ' + completarManualmente[i])
-			}
-			cb()
+			async.each(files, function (file, cb1) {
+
+				file = path.join(location, file)
+				var extension = path.extname(file).toLowerCase()
+
+				if(extension != '.mp3') {
+					return cb1()
+				}
+
+				var nombre_archivo = path.basename(file, extension)
+				var sep = file.split(path.sep)
+				var parts = nombre_archivo.split(' - ')
+
+				//	Si no están en el formato correcto
+				if(parts.length < 2) {
+					return cb1()
+				}
+				
+				//	Words to uppercase
+				for(var i in parts) {
+					var words = parts[i].split(' ')
+					for(var j in words) {
+						words[j] = words[j].charAt(0).toUpperCase() + words[j].slice(1)
+					}
+					parts[i] = words.join(' ')
+				}
+
+				//	Nuevos tags
+				var id3data = new id3.Meta({
+					"artist"		: parts[1] ? parts[0] : 'Unknown',
+					"title" 		: parts[1] || parts[0],
+					"album" 		: sep[sep.length - 2],
+					"comment" 		: 'Fixed with fixmusicnames.js by @angelmunozs',
+					"desc" 			: '',
+					"genre" 		: sep[sep.length - 2]
+				})
+				var id3file = new id3.File(file)
+
+				writer.setFile(id3file).write(id3data, function (error) {
+
+					//	Print progress
+					var msg = util.format('Procesados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
+					process.stdout.write(msg + '                 \r')
+
+					metadataFiles.push(path.basename(file))
+					cb1()
+				})
+			}, cb)
 		}
+
 	], function (error, results) {
 		if (error) {
 			return console.log(error)
 		}
 		console.log('')
-	})
-}
 
-//	===================================================================
-//	Fix mp3 metadada
-//	===================================================================
-
-var fixMetadata = function(file, cb) {
-	
-	var extension = path.extname(file).toLowerCase()
-	if(extension != '.mp3') {
-		return
-	}
-	var nombre_archivo = path.basename(file, extension)
-	var sep = file.split(path.sep)
-	var parts = nombre_archivo.split(' - ')
-	
-	//	Words to uppercase
-	for(var i in parts) {
-		var words = parts[i].split(' ')
-		for(var j in words) {
-			words[j] = words[j].charAt(0).toUpperCase() + words[j].slice(1)
+		console.log('No se han modificado: ')
+		for(var i in correctFiles) {
+			console.log('\t► ' + correctFiles[i])
 		}
-		parts[i] = words.join(' ')
-	}
-
-	//	Nuevos metadatos
-	var metadata = {
-		"author"		: parts[0],
-		"title" 		: parts[1],
-		"genre" 		: sep[sep.length - 2],
-		"album" 		: sep[sep.length - 2],
-		"album_artist" 	: parts[0],
-		"comment" 		: 'Fixed with fixmusicnames.js by @angelmunozs',
-		"description" 	: '',
-		"track" 		: ''
-	}
-	//	Nuevos tags
-	var id3data = new id3.Meta({
-		"artist"		: parts[0],
-		"title" 		: parts[1],
-		"album" 		: sep[sep.length - 2],
-		"comment" 		: 'Fixed with fixmusicnames.js by @angelmunozs',
-		"desc" 			: '',
-		"genre" 		: sep[sep.length - 2],
-		"track" 		: ''
-	})
-	var file = new id3.File(file)
-
-	async.parallel([
-		//	Update metadata
-		function (cb1) {
-			ffmetadata.write(file, metadata, function(error) {
-			    if(error) {
-			    	return cb1(error)
-			    }
-			    cb1()
-			})
-		},
-		//	Update id3 tags
-		function (cb1) {
-			writer.setFile(file).write(id3data, function(err) {
-				if(error) {
-					return cb1(error)
-				}
-				cb1()
-			})
+		console.log('')
+		console.log('Se han modificado: ')
+		for(var i in modifiedFiles) {
+			console.log('\t► ' + modifiedFiles[i].old)
+			console.log('\t\t→ ' + modifiedFiles[i].new)
 		}
-	], function (error) {
-		if(error) {
-			return cb(error)
+		console.log('')
+		console.log('Modificar manualmente (algún parámetro desconocido): ')
+		for(var i in completarManualmente) {
+			console.log('\t► ' + completarManualmente[i])
 		}
-		cb()
+		console.log('')
+		console.log('Se han actualizado los tags: ')
+		for(var i in metadataFiles) {
+			console.log('\t► ' + metadataFiles[i])
+		}
 	})
 }
 
