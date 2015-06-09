@@ -4,7 +4,6 @@ var path 			= require('path')
 var async 			= require('async')
 var util 			= require('util')
 var id3 			= require('id3-writer')
-var writer 			= new id3.Writer()
 
 //	===================================================================
 //	Functionality
@@ -94,7 +93,7 @@ var fixMP3 = function(URL) {
 					//	Mete datos en el array
 					if(old_name != new_name) {
 						//	Si se ha corregido algo, pero falta el nombre del artista
-						if(new_name.split(' - ').length <= 1) {
+						if(new_name.split(' - ').length < 2) {
 							completarManualmente.push(new_name)
 						}
 						modifiedFiles.push({
@@ -114,8 +113,6 @@ var fixMP3 = function(URL) {
 		},
 		//	Update file names
 		function updateFilenames (cb) {
-			//	Currently disabled
-			return cb(null, null)
 
 			fs.readdir(location, function (error, results) {
 				if (error) {
@@ -131,8 +128,6 @@ var fixMP3 = function(URL) {
 		},
 		//	Set id3 tags
 		function setTags (files, cb) {
-			//	Currently disabled
-			return cb(null)
 
 			async.each(files, function (file, cb1) {
 
@@ -172,11 +167,13 @@ var fixMP3 = function(URL) {
 				})
 				var id3file = new id3.File(file)
 
+				var writer = new id3.Writer()
+
 				writer.setFile(id3file).write(id3data, function (error) {
 
 					//	Print progress
-					var msg = util.format('Procesados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
-					process.stdout.write(msg + '                 \r')
+					//	var msg = util.format('Procesados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
+					//	process.stdout.write(msg + '                 \r')
 
 					metadataFiles.push(path.basename(file))
 					cb1()
