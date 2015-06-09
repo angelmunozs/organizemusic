@@ -131,19 +131,17 @@ var fixMP3 = function(URL) {
 
 			async.each(files, function (file, cb1) {
 
-				file = path.join(location, file)
-				var extension = path.extname(file).toLowerCase()
+				var parameter = file
 
-				if(extension != '.mp3') {
-					return cb1()
-				}
+				file = path.join(location, parameter)
+				var extension = path.extname(file).toLowerCase()
 
 				var nombre_archivo = path.basename(file, extension)
 				var sep = file.split(path.sep)
 				var parts = nombre_archivo.split(' - ')
-
-				//	Si no están en el formato correcto
-				if(parts.length < 2) {
+				
+				if(extension != '.mp3' || parts.length < 2) {
+					count++
 					return cb1()
 				}
 				
@@ -172,8 +170,8 @@ var fixMP3 = function(URL) {
 				writer.setFile(id3file).write(id3data, function (error) {
 
 					//	Print progress
-					//	var msg = util.format('Procesados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
-					//	process.stdout.write(msg + '                 \r')
+					var msg = util.format('Procesados %d de %d archivos (%d%%): %s', ++count, total, Math.round(count / total * 10000) / 100, parameter)
+					process.stdout.write(msg + '                 \r')
 
 					metadataFiles.push(path.basename(file))
 					cb1()
