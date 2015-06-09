@@ -15,8 +15,9 @@ var total = 0
 
 var fixMP3 = function(URL) {
 	var location = path.resolve(__dirname, URL)
-	var regex_correcto = /.+\s-\s.+\s\(.+\)\.mp3/
+	var regex_correcto = /.+\s-\s.+\s\([^\s].+[^\s]\)\.mp3/
 	var regex_mix = /\(.+\)/
+	var regex_mix_espacios = /\([\s]+.+[\s]+\)/
 	var regex_no_artista = /.+\s\(.+\)\.mp3/
 	var correctFiles = []
 	var modifiedFiles = []
@@ -59,6 +60,7 @@ var fixMP3 = function(URL) {
 
 			    var extension = path.extname(file).toLowerCase()
 
+			    //	Skip undesired audio formats
 			    if(audio_extensions.indexOf(extension) == -1) {
 			    	return cb1()
 			    }
@@ -73,10 +75,17 @@ var fixMP3 = function(URL) {
 					
 					//	Se carga lo de después de los paréntesis
 					new_name = old_name.replace(/\).+/, ')')
+					//	Si contiene el string '(Original Mix)', pero no entre paréntesis, o en formato incorrecto
+					new_name = new_name.replace(/[^\(][Oo]{1,1}riginal\s[Mm]{1,1}ix[\)]/, ' (Original Mix)')
+					new_name = new_name.replace(/[\(][Oo]{1,1}riginal\s[Mm]{1,1}ix[^\)]/, '(Original Mix).')
+					new_name = new_name.replace(/[^\(][Oo]{1,1}riginal\s[Mm]{1,1}ix[^\)]/, ' (Original Mix).')
 					//	Si le falta "(Original Mix)" al final
-					if(!regex_mix.test(old_name)) {
-						new_name = path.basename(old_name, extension) + ' (Original Mix)'
+					if(!regex_mix.test(new_name)) {
+						new_name = path.basename(new_name, extension) + ' (Original Mix)'
 					}
+					//	Si el nombre del mix está entre espacios
+					new_name = new_name.replace(/\([\s]+/, '(')
+					new_name = new_name.replace(/[\s]+\)/, ')')
 					//	Si nos hemos cargado la extensión
 					var regex_extension = new RegExp('$\.' + extension, '')
 					if(!regex_extension.test(new_name)) {
@@ -84,6 +93,10 @@ var fixMP3 = function(URL) {
 					}
 					//	Mete datos en el array
 					if(old_name != new_name) {
+						//	Si se ha corregido algo, pero falta el nombre del artista
+						if(new_name.split(' - ').length <= 1) {
+							completarManualmente.push(new_name)
+						}
 						modifiedFiles.push({
 							'old' : old_name,
 							'new' : new_name
