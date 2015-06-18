@@ -93,9 +93,7 @@ var copyRandom = function(origen, destino, limit) {
 			var count = 0
 			var total = files.length
 			async.each(files, function(file, cb1) {
-				console.log(file)
-				console.log(destino)
-				fs.copy(file, destino, function(error) {
+				fs.copy(file, path.join(destino, path.basename(file)), function(error) {
 					if(error) {
 						return cb1(error)
 					}

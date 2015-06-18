@@ -23,6 +23,7 @@ var fixMP3 = function(URL) {
 	var completarManualmente = []
 	var metadataFiles = []
 	var audio_extensions = ['.mp3', '.wav', '.wma', '.flac', '.ogg', '.m4a', '.amr']
+	var start = Date.now()
 
 	//	Test folders
 	//	fs.emptyDirSync(location)
@@ -185,6 +186,8 @@ var fixMP3 = function(URL) {
 		}
 		console.log('')
 
+		var end = Date.now()
+
 		console.log('No se han modificado: ')
 		for(var i in correctFiles) {
 			console.log('\t► ' + correctFiles[i])
@@ -205,6 +208,8 @@ var fixMP3 = function(URL) {
 		for(var i in metadataFiles) {
 			console.log('\t► ' + metadataFiles[i])
 		}
+		console.log('')
+		console.log('Tiempo transcurrido: %d segundos', (end - start)/1000)
 	})
 }
 
