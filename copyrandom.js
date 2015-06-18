@@ -12,6 +12,28 @@ var async 	= require('async')
 var rawFiles, organizedFiles  = {}
 
 //	===================================================================
+//	Aux functions
+//	===================================================================
+
+var generateRandomNumbers = function(max, limit) {
+	var arr = []
+	while(arr.length < limit) {
+		var randomnumber = Math.round(Math.random() * max)
+		var found = false
+		for(var i = 0; i < arr.length; i++) {
+			if(arr[i] == randomnumber) {
+				found = true
+				break
+			}
+		}
+		if(!found) {
+			arr[arr.length] = randomnumber
+		}
+	}
+	return arr	
+}
+
+//	===================================================================
 //	Functionality
 //	===================================================================
 
@@ -50,9 +72,13 @@ var copyRandom = function(origen, destino, limit) {
 		//	Pick random files
 		function pickRandomFiles (files, cb) {
 			var randomFiles = []
-			for(var i = 0; i < Math.min(files.length, limit); i++) {
-				randomFiles.push(files[Math.round(Math.random() * files.length)])
+			var desiredFiles = Math.min(files.length, limit)
+			var randomNumbers = generateRandomNumbers(files.length, desiredFiles)
+
+			for(var i = 0; i < desiredFiles; i++) {
+				randomFiles.push(files[randomNumbers[i]])
 			}
+			
 			cb(null, randomFiles)
 		},
 		//	Fix file paths
@@ -67,13 +93,16 @@ var copyRandom = function(origen, destino, limit) {
 			var count = 0
 			var total = files.length
 			async.each(files, function(file, cb1) {
+				console.log(file)
+				console.log(destino)
 				fs.copy(file, destino, function(error) {
 					if(error) {
 						return cb1(error)
 					}
 					//	Print progress
-					//	var msg = util.format('Copiados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
-					//	process.stdout.write(msg + '                 \r')
+					var msg = util.format('Copiados %d de %d archivos (%d%%)', ++count, total, Math.round(count / total * 10000) / 100)
+					process.stdout.write(msg + '                 \r')
+
 					cb1()
 				})
 			}, function(error) {
